@@ -109,8 +109,11 @@ def test_extra_and_airmass():
     am_pv = get_relative_airmass(pos_pv['zenith'], model='young1994')
 
     # solarenergy
-    extra_se = se.sol_const / np.square(sunDist)
-    am_se = se.airmass(sunAlt)             # Air mass for this Sun altitude
+    extra_se = se.sol_const / np.square(sunDist)  # Extraterrestrial radiation = Solar constant, scaled with distance
+    am_se = se.airmass(sunAlt)                    # Air mass for this Sun altitude
+
+    extFac = se.extinction_factor(am_se)       # Extinction factor at sea level for this air mass
+    DNI_se = extra_se / extFac               # DNI for a clear sky
 
     se_style = dict(linestyle='none', marker='o',
                     markerfacecolor='none', markeredgecolor='g', markersize=4)
@@ -129,8 +132,63 @@ def test_extra_and_airmass():
     plt.show()
 
 
+def test_distance():
+    """
+
+    Returns:
+
+    """
+    nl_tz = pytz.timezone("Europe/Amsterdam")
+    times2020 = pd.date_range(start='2019-01-01 00:00:00', end='2019-12-31 23:00:00',
+                              freq='H', tz=nl_tz)
+
+    # Location of solar panels:
+    lon_deg = 5.0
+    lat_deg = 52.0
+    lon_rad = np.deg2rad(5.0)  # Geographic longitude (>0 for eastern hemisphere; ° -> rad)
+    lat_rad = np.deg2rad(52.0)  # Geographic latitude  (>0 for northern hemisphere; ° -> rad)
+
+    # VALIDATION of solar position calculations in PVLIB and solarenergy
+    dist_pv = nrel_earthsun_distance(times2020)
+
+    # solarenergy
+    #times2020_dt = times5060.to_pydatetime()
+    sunAz, sunAlt, sunDist = se.sun_position_from_datetime(lon_rad, lat_rad, times2020)
+
+    # calculate ratio and difference
+    ratio_dist = sunDist / dist_pv.values
+    diff_dist = sunDist - dist_pv.values
+
+    # index = range(len(sunDist))
+    # plot
+    fig, ax = plt.subplots(3, figsize=(15, 8), sharex=True)
+    se_style = dict(linestyle='none', marker='o',
+                    markerfacecolor='none', markeredgecolor='g', markersize=5)
+    pv_style = dict(linestyle='none', marker='.',
+                    markerfacecolor='r', markeredgecolor='r', markersize=3)
+    ax[0].set_ylabel('Distance [A.U.]')
+    ax[0].plot(times2020, dist_pv.values, ',r', label='PVLIB basic', **pv_style)
+    ax[0].plot(times2020, sunDist, label='SE', **se_style)
+
+    ax[1].set_ylabel('Ratio SE/PVLIB')
+    ax[1].plot(times2020, ratio_dist, **pv_style)
+
+    ax[2].set_ylabel('Difference SE - PVLIB')
+    ax[2].plot(times2020, diff_dist, **pv_style)
+
+    ax[0].legend()
+    ax[2].legend()
+    ax[1].set_ylim(0.999, 1.001)
+    ax[2].set_ylim(-0.001, 0.001)
+    ax[2].set_xlabel('Time')
+    plt.suptitle('Validation of AU distance for SE.sun_position_from_datetime \n'
+                 'vs. PVLIB.get_solarposition (apparent_elevation)')
+    plt.show()
+
+
 if __name__ == "__main__":
     test_extinction()
     test_positions()
     test_extra_and_airmass()
+    test_distance()
 

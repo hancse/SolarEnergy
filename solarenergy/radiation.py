@@ -110,9 +110,18 @@ def sun_position_from_datetime(geo_lon,geo_lat, date_time, debug=False):
         scalar_input = True
     
     utcs = date_time  # NOT TRUE???  Numpy arrays are timezone-naive, and MUST be provided as UTC
-    
+    # NOT TRUE! utcs is a ndarray(8760,) of:
+    #    - Timezone aware pandas.Timestamp objects.
+    #    - Timezone-aware Python datetime.datetime objects.
+    # These can be UTC or CET/CEST local Timestamps/ datetime objects.
+    # so, maybe we should reconsider the variable name utcs
+    # both input types are correctly localized to UTC
+    # and split into components YY, MM, DD, HH, mm and ss (float)
+    # by SolTrack
+
     azimuth         = np.array([])
     altitude        = np.array([])
+    altitude_uncorr = np.array([])
     distance        = np.array([])
     
     # Use a loop until we find a better solution:
@@ -122,6 +131,7 @@ def sun_position_from_datetime(geo_lon,geo_lat, date_time, debug=False):
         
         azimuth         = np.append(azimuth, st.azimuth)
         altitude        = np.append(altitude, st.altitude)
+        altitude_uncorr = np.append(altitude_uncorr, st.altitudeUncorr)
         distance        = np.append(distance, st.distance)
     
     
@@ -140,13 +150,13 @@ def sun_position_from_datetime(geo_lon,geo_lat, date_time, debug=False):
     
     
     if scalar_input:
-        return np.asscalar(azimuth), np.asscalar(altitude), np.asscalar(distance)
+        return np.asscalar(azimuth), np.asscalar(altitude), np.asscalar(altitude_uncorr), np.asscalar(distance)
     
-    return azimuth, altitude, distance
+    return azimuth, altitude, altitude_uncorr, distance
 
 
 
-def cos_angle_sun_panels(sp_az,sp_incl, sun_az,sun_alt):
+def cos_angle_sun_panels(sp_az: float, sp_incl: float, sun_az, sun_alt):
     """Compute the cosine of the angle between the orientation vector of the solar panels and the position vector
        of the Sun.
     
@@ -157,18 +167,31 @@ def cos_angle_sun_panels(sp_az,sp_incl, sun_az,sun_alt):
     Parameters:
         sp_az   (float):  Azimuth in which the solar panels are facing (rad; e.g. north or south = 0, same as sun_az).
         sp_incl (float):  Inclination ('zenith angle') of the solar panels w.r.t. the horizontal (rad).
-        sun_az  (float):  Azimuth of the Sun (rad; e.g. north or south = 0, same as sp_az).
-        sun_alt (float):  Altitude of the Sun (rad).
+        sun_az  (float/ndarray):  Azimuth of the Sun (rad; e.g. north or south = 0, same as sp_az).
+        sun_alt (float/ndarray):  Altitude of the Sun (rad).
     
     Returns:
-        float:  The cosine between the normal vector of the solar panels and the position vector of the Sun (rad).
+        float/ ndarray:  The cosine between the normal vector of the solar panels and the position vector of the Sun (rad).
                 Note that this value is zero (indicating radiation from behind the panels) or positive.
                 
     """
-    
+    if not (isinstance(sp_az, float) and isinstance(sp_incl, float)):
+        print("One solar orientation at a time. Solar panel azimuth and inclination must be scalar")
+        return None
+
+    sun_az = np.asarray(sun_az)
+    sun_alt = np.asarray(sun_alt)
+    scalar_input = False
+    if sun_az.ndim == 0:
+        sun_az = sun_az[np.newaxis]  # Makes x 1D
+        sun_alt = sun_alt[np.newaxis]  # Makes x 1D
+    scalar_input = True
+
     cos_theta = np.sin(sun_alt) * np.cos(sp_incl)  +  np.cos(sun_alt) * np.sin(sp_incl) * np.cos(sun_az - sp_az)
     cos_theta = np.maximum(cos_theta, 0)  # Return 0 rather than negative values (indicating radiation from behind).
-    
+
+    if scalar_input:
+        return cos_theta.item()
     return cos_theta
 
 
