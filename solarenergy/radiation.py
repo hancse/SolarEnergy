@@ -665,7 +665,7 @@ def solar_power_from_clear_sky(sp, dat, warn=True):
                 this result is ALSO added to the input DataFrame, as a column named 'Pclrsky'.
     """
     
-    import astrotool as at
+    import astrotool.date_time as at_dt
     from .solar_panels import pv_cell_temperature, pv_efficiency
     
     # Check for necessary solar-panel specs/se.SolarPanels struct elements in sp:
@@ -747,7 +747,7 @@ def solar_power_from_clear_sky(sp, dat, warn=True):
     dat['dirRad']    = dat.dirRad * dat.transmit                                       # Transmitted direct radiation
     
     # Projection of diffuse radiation on solar panels:
-    dat['doy']          = at.doy_from_datetime(dat.dtm)
+    dat['doy']          = at_dt.doy_from_datetime(dat.dtm)
     totDif,isoDif,csDif,horDif = diffuse_radiation_projection_perez87(dat.doy, dat.sun_alt, sp.incl, dat.theta, dat.DNI, dat.DHI, return_components=True)
     dat['difRad']       = np.maximum(isoDif + csDif * dat.transmit + horDif, 0)  # Take into account reflection of circumsolar diffuse radiation
     dat['grRad']        = dat.Igr * (1 - np.cos(sp.incl))/2             # Ultra-simple model for ground-reflected radiation on panels
@@ -758,7 +758,7 @@ def solar_power_from_clear_sky(sp, dat, warn=True):
     
     # Compute the solar-panel power from the total radiation:
     dat['Tcell']     = pv_cell_temperature(dat.temp, dat.totRad, dat.ws)  # PV-cell temperature from T_amb, insolation and wind speed
-    dat['dyear']     = dat.dtm.dt.year + at.doy_from_datetime(dat.dtm)/365.2425
+    dat['dyear']     = dat.dtm.dt.year + at_dt.doy_from_datetime(dat.dtm)/365.2425
     eff              = sp.eff0 + (dat.dyear-sp.year)*sp.deff_dt
     dat['eff']       = pv_efficiency(dat.Tcell, eff, sp.t_coef)
     dat['Pclrsky']   = dat.totRad/1000 * sp.area * dat.eff
